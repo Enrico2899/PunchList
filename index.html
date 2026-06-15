@@ -29,7 +29,7 @@
   .tab-panel{display:none;padding:16px 24px 32px}
   .tab-panel.active{display:block}
 
-  .cranes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .cranes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
   .crane-col{background:#fff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
   .crane-header{padding:12px 16px;background:#f8f9fa;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between}
   .crane-title{font-size:14px;font-weight:600;color:#1a1a1a;display:flex;align-items:center;gap:6px}
@@ -42,16 +42,27 @@
   input[type=checkbox]{margin-top:2px;cursor:pointer;width:15px;height:15px;accent-color:#185FA5;flex-shrink:0}
   .item-body{flex:1;min-width:0}
   .item-text{font-size:13px;line-height:1.4;color:#1a1a1a;word-break:break-word}
-  .item-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
+  .item-meta{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
   .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;letter-spacing:.3px}
   .badge-commissioning{background:#dbeafe;color:#1e40af}
   .badge-punch{background:#fee2e2;color:#991b1b}
   .badge-wish{background:#d1fae5;color:#065f46}
+  .date-tag{font-size:10px;color:#888;display:flex;align-items:center;gap:3px}
+  .date-tag svg{width:11px;height:11px;flex-shrink:0}
+  .date-tag.overdue{color:#dc2626;font-weight:600}
+  .date-tag.today{color:#d97706;font-weight:600}
+  .date-tag.ok{color:#16a34a}
+  /* inline date input on card */
+  .date-inline{font-size:11px;border:none;background:transparent;color:#888;cursor:pointer;padding:0;outline:none;font-family:inherit}
+  .date-inline::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:12px;height:12px}
   .del-btn{background:none;border:none;cursor:pointer;color:#ccc;padding:2px 4px;border-radius:4px;font-size:16px;line-height:1;flex-shrink:0;transition:color .15s}
   .del-btn:hover{color:#e24b4a}
   .add-form{padding:10px;border-top:1px solid #e8e8e8}
   .add-form input,.add-form select{width:100%;font-size:13px;padding:7px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;margin-bottom:7px;outline:none}
   .add-form input:focus,.add-form select:focus{border-color:#185FA5}
+  .add-form-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px}
+  .add-form-row select,.add-form-row input[type=date]{width:100%;font-size:13px;padding:7px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;outline:none;margin:0}
+  .add-form-row input[type=date]:focus,.add-form-row select:focus{border-color:#185FA5}
   .add-btn{width:100%;font-size:13px;padding:7px;background:#185FA5;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
   .add-btn:hover{background:#0c447c}
   .empty-msg{font-size:12px;color:#aaa;text-align:center;padding:20px 8px}
@@ -144,9 +155,9 @@ const CATS = [
 const BADGE = {commissioning:'badge-commissioning',punch:'badge-punch',wish:'badge-wish'};
 
 let items = {};
-let activeTab = 'SY';
 
 const syncDot = document.getElementById('syncDot');
+const TODAY = new Date().toISOString().slice(0,10);
 
 onValue(listRef, snap => {
   items = snap.val() || {};
@@ -158,7 +169,6 @@ onValue(listRef, snap => {
 });
 
 window.switchTab = function(key) {
-  activeTab = key;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+key).classList.add('active');
@@ -169,10 +179,14 @@ window.addItem = function(crane) {
   const key = crane.replace(/[\s]/g,'_');
   const inp = document.getElementById('inp-'+key);
   const sel = document.getElementById('cat-'+key);
+  const dateInp = document.getElementById('date-'+key);
   const text = inp.value.trim();
   if(!text) return;
-  push(listRef, {crane, text, cat: sel.value, done: false, ts: Date.now()});
+  const payload = {crane, text, cat: sel.value, done: false, ts: Date.now()};
+  if(dateInp.value) payload.dueDate = dateInp.value;
+  push(listRef, payload);
   inp.value = '';
+  dateInp.value = '';
   inp.focus();
 };
 
@@ -183,6 +197,21 @@ window.toggleDone = function(id, val) {
 window.removeItem = function(id) {
   if(confirm('Eliminare questo item?')) remove(ref(db, 'punchlist/'+id));
 };
+
+window.updateDate = function(id, val) {
+  update(ref(db, 'punchlist/'+id), {dueDate: val || null});
+};
+
+function dateLabel(dueDate, done) {
+  if(!dueDate) return '';
+  const calIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  const [y,m,d] = dueDate.split('-');
+  const label = `${d}/${m}/${y}`;
+  if(done) return `<span class="date-tag">${calIcon} ${label}</span>`;
+  if(dueDate < TODAY) return `<span class="date-tag overdue">${calIcon} ${label} ⚠</span>`;
+  if(dueDate === TODAY) return `<span class="date-tag today">${calIcon} Oggi</span>`;
+  return `<span class="date-tag ok">${calIcon} ${label}</span>`;
+}
 
 window.renderAll = function() {
   const fText = document.getElementById('globalFilter').value.toLowerCase();
@@ -200,10 +229,12 @@ window.renderAll = function() {
 
   const total = all.length;
   const done = all.filter(i=>i.done).length;
+  const overdue = all.filter(i=>!i.done && i.dueDate && i.dueDate < TODAY).length;
   document.getElementById('statsBar').innerHTML = [
     ['Totale', total],
     ['Chiusi', done],
     ['Aperti', total-done],
+    ['Scaduti', overdue],
     ['Commissioning', all.filter(i=>i.cat==='commissioning').length],
     ['Punch', all.filter(i=>i.cat==='punch').length],
     ['Wish', all.filter(i=>i.cat==='wish').length]
@@ -241,6 +272,11 @@ window.renderAll = function() {
                     <div class="item-text">${esc(it.text)}</div>
                     <div class="item-meta">
                       <span class="badge ${BADGE[it.cat]}">${CATS.find(c=>c.key===it.cat)?.label||it.cat}</span>
+                      ${dateLabel(it.dueDate, it.done)}
+                    </div>
+                    <div style="margin-top:5px;display:flex;align-items:center;gap:4px">
+                      <span style="font-size:10px;color:#aaa">Scadenza:</span>
+                      <input type="date" class="date-inline" value="${it.dueDate||''}" onchange="updateDate('${it.id}', this.value)">
                     </div>
                   </div>
                   <button class="del-btn" onclick="removeItem('${it.id}')" title="Elimina">✕</button>
@@ -250,9 +286,12 @@ window.renderAll = function() {
           </div>
           <div class="add-form">
             <input type="text" id="inp-${key}" placeholder="Nuovo item..." onkeydown="if(event.key==='Enter') addItem('${crane}')">
-            <select id="cat-${key}">
-              ${CATS.map(c=>`<option value="${c.key}">${c.label}</option>`).join('')}
-            </select>
+            <div class="add-form-row">
+              <select id="cat-${key}">
+                ${CATS.map(c=>`<option value="${c.key}">${c.label}</option>`).join('')}
+              </select>
+              <input type="date" id="date-${key}" title="Data di completamento (opzionale)">
+            </div>
             <button class="add-btn" onclick="addItem('${crane}')">+ Aggiungi</button>
           </div>
         </div>
