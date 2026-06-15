@@ -10,18 +10,30 @@
   header{background:#fff;border-bottom:1px solid #e0e0e0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
   .logo{font-size:16px;font-weight:600;color:#1a1a1a;display:flex;align-items:center;gap:8px}
   .logo svg{color:#185FA5}
-  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 24px}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 24px 8px}
   .toolbar input,.toolbar select{padding:7px 12px;font-size:13px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;outline:none}
   .toolbar input:focus,.toolbar select:focus{border-color:#185FA5}
   .toolbar input{min-width:180px;flex:1}
   .stats-bar{display:flex;gap:8px;padding:0 24px 12px;flex-wrap:wrap}
   .stat{font-size:12px;color:#666;background:#fff;padding:4px 12px;border-radius:99px;border:1px solid #e0e0e0}
   .stat b{color:#1a1a1a;font-weight:600}
-  .cranes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:0 24px 32px}
+
+  /* TABS */
+  .tabs-nav{display:flex;gap:0;padding:0 24px;border-bottom:2px solid #e0e0e0;margin-bottom:0}
+  .tab-btn{padding:10px 28px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;color:#888;border-bottom:3px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;letter-spacing:.5px}
+  .tab-btn:hover{color:#185FA5}
+  .tab-btn.active{color:#185FA5;border-bottom-color:#185FA5}
+  .tab-badge{display:inline-block;font-size:10px;font-weight:600;background:#e8edf2;color:#555;border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:middle}
+  .tab-btn.active .tab-badge{background:#dbeafe;color:#1e40af}
+
+  .tab-panel{display:none;padding:16px 24px 32px}
+  .tab-panel.active{display:block}
+
+  .cranes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
   .crane-col{background:#fff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
   .crane-header{padding:12px 16px;background:#f8f9fa;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between}
   .crane-title{font-size:14px;font-weight:600;color:#1a1a1a;display:flex;align-items:center;gap:6px}
-  .crane-icon{width:20px;height:20px;color:#185FA5}
+  .crane-icon{width:20px;height:20px;color:#185FA5;flex-shrink:0}
   .crane-count{font-size:11px;color:#666;background:#e8edf2;padding:2px 8px;border-radius:99px}
   .crane-items{padding:10px;flex:1}
   .item-card{background:#f8f9fa;border:1px solid #e8e8e8;border-radius:8px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;transition:opacity .15s}
@@ -47,9 +59,11 @@
   .sync-dot.ok{background:#22c55e}
   .sync-dot.err{background:#ef4444}
   @media(max-width:600px){
-    .cranes-grid{grid-template-columns:1fr;padding:0 12px 24px}
-    .toolbar,.stats-bar{padding-left:12px;padding-right:12px}
+    .cranes-grid{grid-template-columns:1fr}
+    .toolbar,.stats-bar,.tab-panel{padding-left:12px;padding-right:12px}
+    .tabs-nav{padding:0 12px}
     header{padding:12px 16px}
+    .tab-btn{padding:10px 16px;font-size:13px}
   }
 </style>
 </head>
@@ -81,7 +95,22 @@
 </div>
 
 <div class="stats-bar" id="statsBar"></div>
-<div class="cranes-grid" id="cranesGrid"></div>
+
+<div class="tabs-nav">
+  <button class="tab-btn active" onclick="switchTab('SY')" id="tab-SY">SY <span class="tab-badge" id="badge-SY">0</span></button>
+  <button class="tab-btn" onclick="switchTab('MSP')" id="tab-MSP">MSP <span class="tab-badge" id="badge-MSP">0</span></button>
+  <button class="tab-btn" onclick="switchTab('FG')" id="tab-FG">FG <span class="tab-badge" id="badge-FG">0</span></button>
+</div>
+
+<div class="tab-panel active" id="panel-SY">
+  <div class="cranes-grid" id="grid-SY"></div>
+</div>
+<div class="tab-panel" id="panel-MSP">
+  <div class="cranes-grid" id="grid-MSP"></div>
+</div>
+<div class="tab-panel" id="panel-FG">
+  <div class="cranes-grid" id="grid-FG"></div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -101,7 +130,12 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const listRef = ref(db, 'punchlist');
 
-const CRANES = ['Crane 1','Crane 2','Crane 3','Ground'];
+const TABS = [
+  { key: 'SY',  label: 'SY',  cranes: ['Crane 1'] },
+  { key: 'MSP', label: 'MSP', cranes: ['Crane 2','Crane 3','Ground MSP'] },
+  { key: 'FG',  label: 'FG',  cranes: ['Crane 8','Crane 9','Ground FG'] }
+];
+
 const CATS = [
   {key:'commissioning',label:'Commissioning'},
   {key:'punch',label:'Punch list'},
@@ -110,6 +144,7 @@ const CATS = [
 const BADGE = {commissioning:'badge-commissioning',punch:'badge-punch',wish:'badge-wish'};
 
 let items = {};
+let activeTab = 'SY';
 
 const syncDot = document.getElementById('syncDot');
 
@@ -122,8 +157,16 @@ onValue(listRef, snap => {
   console.error(err);
 });
 
+window.switchTab = function(key) {
+  activeTab = key;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+key).classList.add('active');
+  document.getElementById('panel-'+key).classList.add('active');
+};
+
 window.addItem = function(crane) {
-  const key = crane.replace(/\s/g,'_');
+  const key = crane.replace(/[\s]/g,'_');
   const inp = document.getElementById('inp-'+key);
   const sel = document.getElementById('cat-'+key);
   const text = inp.value.trim();
@@ -166,49 +209,56 @@ window.renderAll = function() {
     ['Wish', all.filter(i=>i.cat==='wish').length]
   ].map(([l,v])=>`<div class="stat">${l}: <b>${v}</b></div>`).join('');
 
-  document.getElementById('cranesGrid').innerHTML = CRANES.map(crane => {
-    const key = crane.replace(/\s/g,'_');
-    const craneAll = all.filter(i=>i.crane===crane);
-    const craneFiltered = filtered.filter(i=>i.crane===crane).sort((a,b)=>a.ts-b.ts);
-    const craneDone = craneAll.filter(i=>i.done).length;
-    return `
-      <div class="crane-col">
-        <div class="crane-header">
-          <div class="crane-title">
-            <svg class="crane-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M6 21V7l6-4 6 4v14"/><path d="M12 3v4"/><line x1="3" y1="21" x2="21" y2="21"/>
-            </svg>
-            ${crane}
+  TABS.forEach(tab => {
+    const tabAll = all.filter(i=>tab.cranes.includes(i.crane));
+    const tabOpen = tabAll.filter(i=>!i.done).length;
+    document.getElementById('badge-'+tab.key).textContent = tabOpen > 0 ? tabOpen : tabAll.length;
+
+    const grid = document.getElementById('grid-'+tab.key);
+    grid.innerHTML = tab.cranes.map(crane => {
+      const key = crane.replace(/[\s]/g,'_');
+      const craneAll = all.filter(i=>i.crane===crane);
+      const craneFiltered = filtered.filter(i=>i.crane===crane).sort((a,b)=>a.ts-b.ts);
+      const craneDone = craneAll.filter(i=>i.done).length;
+      return `
+        <div class="crane-col">
+          <div class="crane-header">
+            <div class="crane-title">
+              <svg class="crane-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 21V7l6-4 6 4v14"/><path d="M12 3v4"/><line x1="3" y1="21" x2="21" y2="21"/>
+              </svg>
+              ${crane}
+            </div>
+            <span class="crane-count">${craneDone}/${craneAll.length}</span>
           </div>
-          <span class="crane-count">${craneDone}/${craneAll.length}</span>
-        </div>
-        <div class="crane-items">
-          ${craneFiltered.length === 0
-            ? `<div class="empty-msg">${craneAll.length===0?'Nessun item ancora':'Nessun risultato'}</div>`
-            : craneFiltered.map(it => `
-              <div class="item-card${it.done?' done':''}">
-                <input type="checkbox" ${it.done?'checked':''} onchange="toggleDone('${it.id}', this.checked)">
-                <div class="item-body">
-                  <div class="item-text">${esc(it.text)}</div>
-                  <div class="item-meta">
-                    <span class="badge ${BADGE[it.cat]}">${CATS.find(c=>c.key===it.cat)?.label||it.cat}</span>
+          <div class="crane-items">
+            ${craneFiltered.length === 0
+              ? `<div class="empty-msg">${craneAll.length===0?'Nessun item ancora':'Nessun risultato'}</div>`
+              : craneFiltered.map(it => `
+                <div class="item-card${it.done?' done':''}">
+                  <input type="checkbox" ${it.done?'checked':''} onchange="toggleDone('${it.id}', this.checked)">
+                  <div class="item-body">
+                    <div class="item-text">${esc(it.text)}</div>
+                    <div class="item-meta">
+                      <span class="badge ${BADGE[it.cat]}">${CATS.find(c=>c.key===it.cat)?.label||it.cat}</span>
+                    </div>
                   </div>
+                  <button class="del-btn" onclick="removeItem('${it.id}')" title="Elimina">✕</button>
                 </div>
-                <button class="del-btn" onclick="removeItem('${it.id}')" title="Elimina">✕</button>
-              </div>
-            `).join('')
-          }
+              `).join('')
+            }
+          </div>
+          <div class="add-form">
+            <input type="text" id="inp-${key}" placeholder="Nuovo item..." onkeydown="if(event.key==='Enter') addItem('${crane}')">
+            <select id="cat-${key}">
+              ${CATS.map(c=>`<option value="${c.key}">${c.label}</option>`).join('')}
+            </select>
+            <button class="add-btn" onclick="addItem('${crane}')">+ Aggiungi</button>
+          </div>
         </div>
-        <div class="add-form">
-          <input type="text" id="inp-${key}" placeholder="Nuovo item..." onkeydown="if(event.key==='Enter') addItem('${crane}')">
-          <select id="cat-${key}">
-            ${CATS.map(c=>`<option value="${c.key}">${c.label}</option>`).join('')}
-          </select>
-          <button class="add-btn" onclick="addItem('${crane}')">+ Aggiungi</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
+  });
 };
 
 function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
