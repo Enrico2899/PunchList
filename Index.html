@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Punch List — Cranes Project</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f5f7;color:#1a1a1a;min-height:100vh}
+  header{background:#fff;border-bottom:1px solid #e0e0e0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  .logo{font-size:16px;font-weight:600;color:#1a1a1a;display:flex;align-items:center;gap:8px}
+  .logo svg{color:#185FA5}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px 24px}
+  .toolbar input,.toolbar select{padding:7px 12px;font-size:13px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;outline:none}
+  .toolbar input:focus,.toolbar select:focus{border-color:#185FA5}
+  .toolbar input{min-width:180px;flex:1}
+  .stats-bar{display:flex;gap:8px;padding:0 24px 12px;flex-wrap:wrap}
+  .stat{font-size:12px;color:#666;background:#fff;padding:4px 12px;border-radius:99px;border:1px solid #e0e0e0}
+  .stat b{color:#1a1a1a;font-weight:600}
+  .cranes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:0 24px 32px}
+  .crane-col{background:#fff;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .crane-header{padding:12px 16px;background:#f8f9fa;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between}
+  .crane-title{font-size:14px;font-weight:600;color:#1a1a1a;display:flex;align-items:center;gap:6px}
+  .crane-icon{width:20px;height:20px;color:#185FA5}
+  .crane-count{font-size:11px;color:#666;background:#e8edf2;padding:2px 8px;border-radius:99px}
+  .crane-items{padding:10px;flex:1}
+  .item-card{background:#f8f9fa;border:1px solid #e8e8e8;border-radius:8px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;transition:opacity .15s}
+  .item-card.done{opacity:.45}
+  .item-card.done .item-text{text-decoration:line-through;color:#888}
+  input[type=checkbox]{margin-top:2px;cursor:pointer;width:15px;height:15px;accent-color:#185FA5;flex-shrink:0}
+  .item-body{flex:1;min-width:0}
+  .item-text{font-size:13px;line-height:1.4;color:#1a1a1a;word-break:break-word}
+  .item-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
+  .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;letter-spacing:.3px}
+  .badge-commissioning{background:#dbeafe;color:#1e40af}
+  .badge-punch{background:#fee2e2;color:#991b1b}
+  .badge-wish{background:#d1fae5;color:#065f46}
+  .del-btn{background:none;border:none;cursor:pointer;color:#ccc;padding:2px 4px;border-radius:4px;font-size:16px;line-height:1;flex-shrink:0;transition:color .15s}
+  .del-btn:hover{color:#e24b4a}
+  .add-form{padding:10px;border-top:1px solid #e8e8e8}
+  .add-form input,.add-form select{width:100%;font-size:13px;padding:7px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;color:#1a1a1a;margin-bottom:7px;outline:none}
+  .add-form input:focus,.add-form select:focus{border-color:#185FA5}
+  .add-btn{width:100%;font-size:13px;padding:7px;background:#185FA5;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+  .add-btn:hover{background:#0c447c}
+  .empty-msg{font-size:12px;color:#aaa;text-align:center;padding:20px 8px}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block;margin-left:6px;transition:background .3s}
+  .sync-dot.ok{background:#22c55e}
+  .sync-dot.err{background:#ef4444}
+  @media(max-width:600px){
+    .cranes-grid{grid-template-columns:1fr;padding:0 12px 24px}
+    .toolbar,.stats-bar{padding-left:12px;padding-right:12px}
+    header{padding:12px 16px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg class="crane-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 21V7l6-4 6 4v14"/><path d="M12 3v4"/><line x1="3" y1="21" x2="21" y2="21"/>
+    </svg>
+    Cranes — Punch List
+  </div>
+  <span style="font-size:12px;color:#888">Sync Firebase <span class="sync-dot" id="syncDot"></span></span>
+</header>
+
+<div class="toolbar">
+  <input id="globalFilter" placeholder="🔍  Cerca item..." oninput="renderAll()">
+  <select id="catFilter" onchange="renderAll()">
+    <option value="">Tutte le categorie</option>
+    <option value="commissioning">Commissioning</option>
+    <option value="punch">Punch list</option>
+    <option value="wish">Wish list</option>
+  </select>
+  <select id="statusFilter" onchange="renderAll()">
+    <option value="">Tutti gli stati</option>
+    <option value="open">Aperti</option>
+    <option value="done">Chiusi</option>
+  </select>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+<div class="cranes-grid" id="cranesGrid"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDGvaHMwseBslu9C5TYhtCb11ZxDiYsn2M",
+  authDomain: "cranes-projects.firebaseapp.com",
+  projectId: "cranes-projects",
+  storageBucket: "cranes-projects.firebasestorage.app",
+  messagingSenderId: "980158998274",
+  appId: "1:980158998274:web:40c6fc775118df8355841b",
+  databaseURL: "https://cranes-projects-default-rtdb.europe-west1.firebasedatabase.app"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const listRef = ref(db, 'punchlist');
+
+const CRANES = ['Crane 1','Crane 2','Crane 3','Ground'];
+const CATS = [
+  {key:'commissioning',label:'Commissioning'},
+  {key:'punch',label:'Punch list'},
+  {key:'wish',label:'Wish list'}
+];
+const BADGE = {commissioning:'badge-commissioning',punch:'badge-punch',wish:'badge-wish'};
+
+let items = {};
+
+const syncDot = document.getElementById('syncDot');
+
+onValue(listRef, snap => {
+  items = snap.val() || {};
+  syncDot.className = 'sync-dot ok';
+  renderAll();
+}, err => {
+  syncDot.className = 'sync-dot err';
+  console.error(err);
+});
+
+window.addItem = function(crane) {
+  const key = crane.replace(/\s/g,'_');
+  const inp = document.getElementById('inp-'+key);
+  const sel = document.getElementById('cat-'+key);
+  const text = inp.value.trim();
+  if(!text) return;
+  push(listRef, {crane, text, cat: sel.value, done: false, ts: Date.now()});
+  inp.value = '';
+  inp.focus();
+};
+
+window.toggleDone = function(id, val) {
+  update(ref(db, 'punchlist/'+id), {done: val});
+};
+
+window.removeItem = function(id) {
+  if(confirm('Eliminare questo item?')) remove(ref(db, 'punchlist/'+id));
+};
+
+window.renderAll = function() {
+  const fText = document.getElementById('globalFilter').value.toLowerCase();
+  const fCat = document.getElementById('catFilter').value;
+  const fStatus = document.getElementById('statusFilter').value;
+
+  const all = Object.entries(items).map(([id,v])=>({id,...v}));
+  const filtered = all.filter(it => {
+    if(fText && !it.text.toLowerCase().includes(fText)) return false;
+    if(fCat && it.cat !== fCat) return false;
+    if(fStatus==='open' && it.done) return false;
+    if(fStatus==='done' && !it.done) return false;
+    return true;
+  });
+
+  const total = all.length;
+  const done = all.filter(i=>i.done).length;
+  document.getElementById('statsBar').innerHTML = [
+    ['Totale', total],
+    ['Chiusi', done],
+    ['Aperti', total-done],
+    ['Commissioning', all.filter(i=>i.cat==='commissioning').length],
+    ['Punch', all.filter(i=>i.cat==='punch').length],
+    ['Wish', all.filter(i=>i.cat==='wish').length]
+  ].map(([l,v])=>`<div class="stat">${l}: <b>${v}</b></div>`).join('');
+
+  document.getElementById('cranesGrid').innerHTML = CRANES.map(crane => {
+    const key = crane.replace(/\s/g,'_');
+    const craneAll = all.filter(i=>i.crane===crane);
+    const craneFiltered = filtered.filter(i=>i.crane===crane).sort((a,b)=>a.ts-b.ts);
+    const craneDone = craneAll.filter(i=>i.done).length;
+    return `
+      <div class="crane-col">
+        <div class="crane-header">
+          <div class="crane-title">
+            <svg class="crane-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 21V7l6-4 6 4v14"/><path d="M12 3v4"/><line x1="3" y1="21" x2="21" y2="21"/>
+            </svg>
+            ${crane}
+          </div>
+          <span class="crane-count">${craneDone}/${craneAll.length}</span>
+        </div>
+        <div class="crane-items">
+          ${craneFiltered.length === 0
+            ? `<div class="empty-msg">${craneAll.length===0?'Nessun item ancora':'Nessun risultato'}</div>`
+            : craneFiltered.map(it => `
+              <div class="item-card${it.done?' done':''}">
+                <input type="checkbox" ${it.done?'checked':''} onchange="toggleDone('${it.id}', this.checked)">
+                <div class="item-body">
+                  <div class="item-text">${esc(it.text)}</div>
+                  <div class="item-meta">
+                    <span class="badge ${BADGE[it.cat]}">${CATS.find(c=>c.key===it.cat)?.label||it.cat}</span>
+                  </div>
+                </div>
+                <button class="del-btn" onclick="removeItem('${it.id}')" title="Elimina">✕</button>
+              </div>
+            `).join('')
+          }
+        </div>
+        <div class="add-form">
+          <input type="text" id="inp-${key}" placeholder="Nuovo item..." onkeydown="if(event.key==='Enter') addItem('${crane}')">
+          <select id="cat-${key}">
+            ${CATS.map(c=>`<option value="${c.key}">${c.label}</option>`).join('')}
+          </select>
+          <button class="add-btn" onclick="addItem('${crane}')">+ Aggiungi</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+renderAll();
+</script>
+</body>
+</html>
